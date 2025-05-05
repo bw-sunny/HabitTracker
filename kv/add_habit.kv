@@ -1,0 +1,67 @@
+<AddHabitScreen>:
+    name: 'add_habit'
+
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: dp(0)
+
+        MDTopAppBar:
+            title: "HabitTracker"
+            left_action_items: [["arrow-left", lambda x: root.cancel()]]
+            elevation: 10
+            md_bg_color: app.theme_cls.primary_color
+
+        ScrollView:
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(20)
+                spacing: dp(20)
+
+                MDLabel:
+                    text: "Добавление привычки"
+                    halign: 'center'
+                    font_style: 'H5'
+                    size_hint_y: None
+                    height: self.texture_size[1]
+
+                MDTextField:
+                    id: habit_name
+                    hint_text: "Название привычки"
+                    icon_left: "format-title"
+                    mode: "rectangle"
+
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(10)
+
+                    MDIconButton:
+                        id: habit_icon
+                        icon: "plus"
+                        theme_text_color: "Primary"
+
+                    MDLabel:
+                        text: "Иконка привычки"
+                        halign: 'left'
+                        valign: 'center'
+
+                MDTextField:
+                    id: habit_description
+                    hint_text: "Описание привычки"
+                    icon_left: "text-box-outline"
+                    mode: "rectangle"
+                    multiline: True
+
+        BoxLayout:
+            size_hint_y: None
+            height: dp(80)
+            padding: dp(20)
+
+            MDRaisedButton:
+                text: "Сохранить"
+                pos_hint: {'center_x': 0.5}
+                size_hint_x: 0.8
+                on_press: root.save_habit()

@@ -1,0 +1,59 @@
+<ProfileScreen>:
+    name: 'profile'
+    
+    MDBoxLayout:
+        orientation: 'vertical'
+        padding: "20dp"
+        spacing: "10dp"
+
+        MDTopAppBar:
+            title: "Профиль"
+            left_action_items: [['arrow-left', lambda x: root.back_to_main()]]
+            elevation: 0
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: 'vertical'
+                spacing: "20dp"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: [10, 0, 10, 10]
+
+                MDLabel:
+                    text: "Профиль"
+                    font_style: "H5"
+                    size_hint_y: None
+                    height: self.texture_size[1]
+                    halign: "center"
+
+                MDTextField:
+                    id: email_field
+                    hint_text: "e-mail"
+                    size_hint_x: 0.9
+                    pos_hint: {"center_x": 0.5}
+                    mode: "rectangle"
+                    padding: [0, 0, 0, "20dp"]
+
+                MDBoxLayout:
+                    orientation: 'vertical'
+                    spacing: "15dp"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    padding: [20, 0, 20, 0]
+
+                    MDRaisedButton:
+                        text: "Достижения"
+                        size_hint_x: 1
+                        on_release: app.show_achievements()
+
+                    MDRaisedButton:
+                        text: "FAQ"
+                        size_hint_x: 1
+                        on_release: app.show_faq()
+
+        MDRaisedButton:
+            text: "Сохранить"
+            size_hint_x: 0.9
+            pos_hint: {"center_x": 0.5}
+            on_release: root.save_profile()
+            padding: [0, 20, 0, 20]

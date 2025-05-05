@@ -1,0 +1,45 @@
+<RegisterScreen>:
+    name: 'register'
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(40)
+        spacing: dp(20)
+
+        MDLabel:
+            text: 'Регистрация'
+            halign: 'center'
+            font_style: 'H4'
+            size_hint_y: None
+            height: self.texture_size[1]
+
+        MDTextField:
+            id: reg_email
+            hint_text: 'Email'
+            icon_left: 'email'
+            size_hint_x: None
+            width: dp(250)
+            pos_hint: {'center_x': 0.5}
+
+        MDTextField:
+            id: reg_password
+            hint_text: 'Пароль'
+            icon_left: 'key'
+            password: True
+            size_hint_x: None
+            width: dp(250)
+            pos_hint: {'center_x': 0.5}
+
+        MDRaisedButton:
+            text: 'Зарегистрироваться'
+            size_hint_x: None
+            width: dp(200)
+            pos_hint: {'center_x': 0.5}
+            on_press: root.try_register()
+
+        MDFlatButton:
+            text: 'Уже есть аккаунт? Войти'
+            size_hint_x: None
+            width: dp(200)
+            pos_hint: {'center_x': 0.5}
+            on_press: root.switch_to_login()

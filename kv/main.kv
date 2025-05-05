@@ -1,0 +1,72 @@
+<MainScreen>:
+    name: 'main'
+
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: dp(0)
+
+        MDTopAppBar:
+            id: toolbar
+            title: "HabitTracker"
+            left_action_items: [['fire', lambda x: root.show_streak()]]
+            right_action_items: [['account', lambda x: root.show_profile()]]
+            elevation: 10
+            md_bg_color: app.theme_cls.primary_color
+
+        ScrollView:
+            BoxLayout:
+                orientation: 'vertical'
+                spacing: dp(20)
+                padding: dp(20)
+                size_hint_y: None
+                height: self.minimum_height
+
+                MDLabel:
+                    text: "Ваши привычки"
+                    halign: 'center'
+                    font_style: 'H5'
+                    size_hint_y: None
+                    height: self.texture_size[1]
+
+                BoxLayout:
+                    id: habits_container
+                    orientation: 'vertical'
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(10)
+
+                    # Это будет заменяться при добавлении привычек
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: dp(20)
+                        size_hint_y: None
+                        height: self.minimum_height
+                        padding: dp(20)
+
+                        MDIcon:
+                            icon: "emoticon-sad-outline"
+                            size_hint: (None, None)
+                            size: dp(48), dp(48)
+                            pos_hint: {'center_x': 0.5}
+                            theme_text_color: 'Secondary'
+
+                        MDLabel:
+                            text: "У вас пока нет привычек"
+                            halign: 'center'
+                            theme_text_color: 'Secondary'
+
+        BoxLayout:
+            size_hint_y: None
+            height: dp(80)
+            padding: dp(20)
+
+            MDRaisedButton:
+                id: add_habit_btn
+                text: "Добавить привычку"
+                pos_hint: {'center_x': 0.5}
+                size_hint_x: 0.8
+                on_press: app.root.current = 'add_habit'
+
+<HabitItem>:
+    IconLeftWidget:
+        icon: root.icon
