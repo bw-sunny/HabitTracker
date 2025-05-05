@@ -5,6 +5,7 @@ from kivy.lang import Builder
 from kivy.properties import StringProperty
 import sqlite3
 from kivymd.toast import toast
+# Бычий  сизципень
 
 # Загрузка всех KV-файлов
 Builder.load_file('/Users/bezenov_v/Desktop/HabitTracker/kv/login.kv')
