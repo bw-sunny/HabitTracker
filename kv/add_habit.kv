@@ -55,6 +55,27 @@
                     mode: "rectangle"
                     multiline: True
 
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(10)
+
+                    MDIconButton:
+                        icon: "calendar"
+                        theme_text_color: "Primary"
+
+                    MDLabel:
+                        text: "Частота выполнения:"
+                        halign: 'left'
+                        valign: 'center'
+
+                    MDRectangleFlatButton:
+                        id: frequency_btn
+                        text: "Выберите частоту"
+                        on_release: root.show_frequency_menu()
+                        size_hint_x: 0.7
+
         BoxLayout:
             size_hint_y: None
             height: dp(80)
