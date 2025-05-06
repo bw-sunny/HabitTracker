@@ -46,6 +46,7 @@ def init_db():
             icon TEXT,
             description TEXT,
             frequency TEXT,
+            period TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
@@ -118,37 +119,35 @@ class MainScreen(MDScreen):
         self.load_habits()
 
     def load_habits(self):
-        # Очищаем существующие привычки
         habits_container = self.ids.habits_container
         habits_container.clear_widgets()
 
         try:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
-            # Предполагаем user_id = 1 для примера
-            cursor.execute('SELECT id, name, icon, description, frequency FROM habits WHERE user_id=1')
+            cursor.execute('SELECT id, name, icon, description, frequency, period FROM habits WHERE user_id=1')
             habits = cursor.fetchall()
             conn.close()
 
             for habit in habits:
-                habit_id, name, icon, description, frequency = habit
-                self.add_habit_to_ui(habit_id, name, icon, description, frequency)
+                habit_id, name, icon, description, frequency, period = habit
+                self.add_habit_to_ui(habit_id, name, icon, description, frequency, period)
         except Exception as e:
             print(f"Ошибка загрузки привычек: {e}")
 
-    def add_habit_to_ui(self, habit_id, name, icon, description, frequency):
+    def add_habit_to_ui(self, habit_id, name, icon, description, frequency, period):
         from kivymd.uix.card import MDCard
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.label import MDLabel
 
         card = MDCard(
             size_hint=(None, None),
-            size=("300dp", "120dp"),
+            size=("300dp", "140dp"),  # Увеличили высоту для отображения периода
             pos_hint={"center_x": 0.5},
             padding="10dp",
             spacing="10dp",
             ripple_behavior=True,
-            on_release=lambda x, hid=habit_id: self.show_habit_info(hid)  # Передаем habit_id как параметр
+            on_release=lambda x, hid=habit_id: self.show_habit_info(hid)
         )
 
         box = MDBoxLayout(orientation='vertical')
@@ -186,9 +185,18 @@ class MainScreen(MDScreen):
             halign="left"
         )
 
+        # Четвертая строка - период
+        period_label = MDLabel(
+            text=f"Период: {period}",
+            theme_text_color="Hint",
+            font_style="Caption",
+            halign="left"
+        )
+
         box.add_widget(top_box)
         box.add_widget(desc_label)
         box.add_widget(freq_label)
+        box.add_widget(period_label)  # Добавляем отображение периода
         card.add_widget(box)
 
         self.ids.habits_container.add_widget(card)
@@ -252,14 +260,10 @@ class AddHabitScreen(MDScreen):
         icon = self.ids.habit_icon.icon
         description = self.ids.habit_description.text
         frequency = self.ids.frequency_btn.text
+        period = self.ids.period_btn.text
 
-        if not all([name, description, frequency != "Выберите частоту"]):
-            if not name:
-                toast("Введите название привычки")
-            elif not description:
-                toast("Введите описание привычки")
-            else:
-                toast("Выберите частоту")
+        if not all([name, description, frequency != "Выберите частоту", period != "Выберите период"]):
+            toast("Заполните все поля")
             return
 
         try:
@@ -267,28 +271,22 @@ class AddHabitScreen(MDScreen):
             cursor = conn.cursor()
 
             if self.edit_mode:
-                # Режим редактирования
                 cursor.execute('''
                     UPDATE habits 
-                    SET name=?, icon=?, description=?, frequency=?
+                    SET name=?, icon=?, description=?, frequency=?, period=?
                     WHERE id=?
-                ''', (name, icon, description, frequency, self.editing_habit_id))
-                toast("Привычка обновлена!")
+                ''', (name, icon, description, frequency, period, self.editing_habit_id))
             else:
-                # Режим добавления
                 cursor.execute('''
-                    INSERT INTO habits (user_id, name, icon, description, frequency)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (1, name, icon, description, frequency))
-                toast("Привычка сохранена!")
+                    INSERT INTO habits (user_id, name, icon, description, frequency, period)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (1, name, icon, description, frequency, period))
 
             conn.commit()
             conn.close()
-
+            toast("Привычка сохранена!")
             self.manager.current = 'main'
-            # Обновляем главный экран
-            main_screen = self.manager.get_screen('main')
-            main_screen.load_habits()
+            self.manager.get_screen('main').load_habits()
 
             # Сбрасываем режим редактирования
             self.edit_mode = False
@@ -334,6 +332,46 @@ class AddHabitScreen(MDScreen):
         )
         self.frequency_menu.open()
 
+    def show_period_menu(self):
+        period_items = [
+            {
+                "text": "1 неделя",
+                "viewclass": "OneLineListItem",
+                "on_release": lambda x="1 неделя": self.set_period(x),
+            },
+            {
+                "text": "3 недели",
+                "viewclass": "OneLineListItem",
+                "on_release": lambda x="3 недели": self.set_period(x),
+            },
+            {
+                "text": "1 месяц",
+                "viewclass": "OneLineListItem",
+                "on_release": lambda x="1 месяц": self.set_period(x),
+            },
+            {
+                "text": "3 месяца",
+                "viewclass": "OneLineListItem",
+                "on_release": lambda x="3 месяца": self.set_period(x),
+            },
+            {
+                "text": "1 год",
+                "viewclass": "OneLineListItem",
+                "on_release": lambda x="1 год": self.set_period(x),
+            },
+        ]
+
+        self.period_menu = MDDropdownMenu(
+            caller=self.ids.period_btn,
+            items=period_items,
+            width_mult=4,
+        )
+        self.period_menu.open()
+
+    def set_period(self, period):
+        self.ids.period_btn.text = period
+        self.period_menu.dismiss()
+
     def set_frequency(self, frequency):
         self.ids.frequency_btn.text = frequency
         self.frequency_menu.dismiss()
@@ -345,20 +383,20 @@ class HabitInfoScreen(MDScreen):
     habit_id = None
 
     def on_pre_enter(self):
-        # Загружаем данные привычки при открытии экрана
         if self.habit_id:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
-            cursor.execute('SELECT name, icon, description, frequency FROM habits WHERE id=?', (self.habit_id,))
+            cursor.execute('SELECT name, icon, description, frequency, period FROM habits WHERE id=?', (self.habit_id,))
             habit = cursor.fetchone()
             conn.close()
 
             if habit:
-                name, icon, description, frequency = habit
+                name, icon, description, frequency, period = habit
                 self.ids.habit_name.text = name
                 self.ids.habit_icon.icon = icon if icon else "emoticon-happy-outline"
                 self.ids.habit_description.text = description
-                self.ids.habit_frequency.text = frequency
+                self.ids.habit_frequency.text = f"Частота: {frequency}"
+                self.ids.habit_period.text = f"Период: {period}"
 
     def back_to_main(self):
         self.manager.current = 'main'

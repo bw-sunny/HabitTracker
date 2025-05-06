@@ -76,6 +76,27 @@
                         on_release: root.show_frequency_menu()
                         size_hint_x: 0.7
 
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: dp(48)
+                    spacing: dp(10)
+
+                    MDIconButton:
+                        icon: "calendar-range"
+                        theme_text_color: "Primary"
+
+                    MDLabel:
+                        text: "Период выполнения:"
+                        halign: 'left'
+                        valign: 'center'
+
+                    MDRectangleFlatButton:
+                        id: period_btn
+                        text: "Выберите период"
+                        on_release: root.show_period_menu()
+                        size_hint_x: 0.7
+
         BoxLayout:
             size_hint_y: None
             height: dp(80)
