@@ -7,7 +7,7 @@ import sqlite3
 from kivymd.toast import toast
 from kivymd.uix.menu import MDDropdownMenu
 # Бычий  сизципень
-# Мягков  сыншлюхеньжирная
+
 
 # Загрузка всех KV-файлов
 Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/login.kv')
