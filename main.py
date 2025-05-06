@@ -6,6 +6,8 @@ from kivy.properties import StringProperty
 import sqlite3
 from kivymd.toast import toast
 from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.button import MDRaisedButton, MDFlatButton
+from kivymd.uix.dialog import MDDialog
 # Бычий  сизципень мягков
 
 
@@ -15,6 +17,7 @@ Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/registr.kv')
 Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/main.kv')
 Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/add_habit.kv')
 Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/profile.kv')
+Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/habit_info.kv')
 
 
 # Инициализация базы данных
@@ -123,17 +126,17 @@ class MainScreen(MDScreen):
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
             # Предполагаем user_id = 1 для примера
-            cursor.execute('SELECT name, icon, description, frequency FROM habits WHERE user_id=1')
+            cursor.execute('SELECT id, name, icon, description, frequency FROM habits WHERE user_id=1')
             habits = cursor.fetchall()
             conn.close()
 
             for habit in habits:
-                name, icon, description, frequency = habit
-                self.add_habit_to_ui(name, icon, description, frequency)
+                habit_id, name, icon, description, frequency = habit
+                self.add_habit_to_ui(habit_id, name, icon, description, frequency)
         except Exception as e:
             print(f"Ошибка загрузки привычек: {e}")
 
-    def add_habit_to_ui(self, name, icon, description, frequency):
+    def add_habit_to_ui(self, habit_id, name, icon, description, frequency):
         from kivymd.uix.card import MDCard
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.label import MDLabel
@@ -143,7 +146,9 @@ class MainScreen(MDScreen):
             size=("300dp", "120dp"),
             pos_hint={"center_x": 0.5},
             padding="10dp",
-            spacing="10dp"
+            spacing="10dp",
+            ripple_behavior=True,
+            on_release=lambda x, hid=habit_id: self.show_habit_info(hid)  # Передаем habit_id как параметр
         )
 
         box = MDBoxLayout(orientation='vertical')
@@ -197,6 +202,13 @@ class MainScreen(MDScreen):
     def add_habit(self):
         self.manager.current = 'add_habit'
 
+    def show_habit_info(self, habit_id):
+        habit_screen = self.manager.get_screen('habit_info')
+        habit_screen.habit_id = habit_id
+        self.manager.current = 'habit_info'
+
+
+
 
 class ProfileScreen(MDScreen):
     def __init__(self, **kwargs):
@@ -232,6 +244,9 @@ class ProfileScreen(MDScreen):
 
 
 class AddHabitScreen(MDScreen):
+    edit_mode = False
+    editing_habit_id = None
+
     def save_habit(self):
         name = self.ids.habit_name.text
         icon = self.ids.habit_icon.icon
@@ -250,22 +265,48 @@ class AddHabitScreen(MDScreen):
         try:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
-            # Предполагаем, что user_id = 1 для примера
-            cursor.execute('''
-                INSERT INTO habits (user_id, name, icon, description, frequency)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (1, name, icon, description, frequency))
+
+            if self.edit_mode:
+                # Режим редактирования
+                cursor.execute('''
+                    UPDATE habits 
+                    SET name=?, icon=?, description=?, frequency=?
+                    WHERE id=?
+                ''', (name, icon, description, frequency, self.editing_habit_id))
+                toast("Привычка обновлена!")
+            else:
+                # Режим добавления
+                cursor.execute('''
+                    INSERT INTO habits (user_id, name, icon, description, frequency)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (1, name, icon, description, frequency))
+                toast("Привычка сохранена!")
+
             conn.commit()
             conn.close()
 
-            toast("Привычка сохранена!")
             self.manager.current = 'main'
             # Обновляем главный экран
             main_screen = self.manager.get_screen('main')
             main_screen.load_habits()
+
+            # Сбрасываем режим редактирования
+            self.edit_mode = False
+            self.editing_habit_id = None
+
         except Exception as e:
             print(f"Ошибка сохранения привычки: {e}")
             toast("Ошибка сохранения")
+
+    def on_pre_leave(self):
+        # Очищаем поля при выходе с экрана
+        if not self.edit_mode:
+            self.ids.habit_name.text = ""
+            self.ids.habit_icon.icon = "plus"
+            self.ids.habit_description.text = ""
+            self.ids.frequency_btn.text = "Выберите частоту"
+        self.edit_mode = False
+        self.editing_habit_id = None
 
     def show_frequency_menu(self):
         frequency_items = [
@@ -300,6 +341,92 @@ class AddHabitScreen(MDScreen):
         self.manager.current = 'main'
 
 
+class HabitInfoScreen(MDScreen):
+    habit_id = None
+
+    def on_pre_enter(self):
+        # Загружаем данные привычки при открытии экрана
+        if self.habit_id:
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('SELECT name, icon, description, frequency FROM habits WHERE id=?', (self.habit_id,))
+            habit = cursor.fetchone()
+            conn.close()
+
+            if habit:
+                name, icon, description, frequency = habit
+                self.ids.habit_name.text = name
+                self.ids.habit_icon.icon = icon if icon else "emoticon-happy-outline"
+                self.ids.habit_description.text = description
+                self.ids.habit_frequency.text = frequency
+
+    def back_to_main(self):
+        self.manager.current = 'main'
+
+    def edit_habit(self):
+        # Реализуем редактирование привычки
+        try:
+            # Получаем текущие данные привычки
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('SELECT name, icon, description, frequency FROM habits WHERE id=?', (self.habit_id,))
+            habit = cursor.fetchone()
+            conn.close()
+
+            if habit:
+                # Переходим на экран добавления привычки в режиме редактирования
+                add_screen = self.manager.get_screen('add_habit')
+                add_screen.ids.habit_name.text = habit[0]  # name
+                add_screen.ids.habit_icon.icon = habit[1] if habit[1] else "plus"  # icon
+                add_screen.ids.habit_description.text = habit[2]  # description
+                add_screen.ids.frequency_btn.text = habit[3]  # frequency
+                add_screen.edit_mode = True
+                add_screen.editing_habit_id = self.habit_id
+                self.manager.current = 'add_habit'
+        except Exception as e:
+            print(f"Ошибка при редактировании привычки: {e}")
+            toast("Ошибка при редактировании")
+
+    def show_delete_dialog(self):
+        dialog = MDDialog(
+            title="Удаление привычки",
+            text=f"Вы уверены, что хотите удалить привычку '{self.ids.habit_name.text}'?",
+            buttons=[
+                MDFlatButton(
+                    text="Отмена",
+                    theme_text_color="Custom",
+                    text_color=self.theme_cls.primary_color,
+                    on_release=lambda *args: dialog.dismiss()
+                ),
+                MDRaisedButton(
+                    text="Удалить",
+                    md_bg_color=self.theme_cls.error_color,
+                    on_release=lambda *args: self.delete_habit(dialog)
+                ),
+            ],
+        )
+        dialog.open()
+
+    def delete_habit(self, dialog):
+        try:
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM habits WHERE id=?', (self.habit_id,))
+            conn.commit()
+            conn.close()
+
+            toast("Привычка удалена")
+            dialog.dismiss()
+            self.back_to_main()
+
+            # Обновляем главный экран
+            main_screen = self.manager.get_screen('main')
+            main_screen.load_habits()
+        except Exception as e:
+            print(f"Ошибка удаления привычки: {e}")
+            toast("Ошибка удаления")
+
+
 class HabitTrackerApp(MDApp):
     def build(self):
         self.theme_cls.primary_palette = "Blue"
@@ -311,6 +438,7 @@ class HabitTrackerApp(MDApp):
         sm.add_widget(MainScreen(name='main'))
         sm.add_widget(AddHabitScreen(name='add_habit'))
         sm.add_widget(ProfileScreen(name='profile'))
+        sm.add_widget(HabitInfoScreen(name='habit_info'))
 
         return sm
 
@@ -319,6 +447,8 @@ class HabitTrackerApp(MDApp):
 
     def show_faq(self):
         toast("FAQ")
+
+
 
 
 if __name__ == '__main__':
