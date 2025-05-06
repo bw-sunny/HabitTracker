@@ -6,8 +6,8 @@ from kivy.properties import StringProperty
 import sqlite3
 from kivymd.toast import toast
 from kivymd.uix.menu import MDDropdownMenu
-# Бычий  сизципень
-# Мягков  сыншлюхеньжирная
+# Бычий  сизципень мягков
+
 
 # Загрузка всех KV-файлов
 Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/login.kv')
