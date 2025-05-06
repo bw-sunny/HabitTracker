@@ -6,7 +6,7 @@ from kivy.properties import StringProperty
 import sqlite3
 from kivymd.toast import toast
 from kivymd.uix.menu import MDDropdownMenu
-# Бычий  сизципень
+# Бычий  сизципень мягков
 
 
 # Загрузка всех KV-файлов
