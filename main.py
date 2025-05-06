@@ -13,12 +13,12 @@ from kivymd.uix.menu import MDDropdownMenu
 
 
 # Загрузка всех KV-файлов
-Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/login.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/registr.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/main.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/add_habit.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/profile.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/habit_info.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/new/HabitTracker/kv/login.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/new/HabitTracker/kv/registr.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/new/HabitTracker/kv/main.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/new/HabitTracker/kv/add_habit.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/new/HabitTracker/kv/profile.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/new/HabitTracker/kv/habit_info.kv')
 
 
 # Инициализация базы данных
@@ -75,21 +75,29 @@ class LoginScreen(MDScreen):
         password = self.ids.password.text
 
         if email and password:
-            conn = sqlite3.connect('users.db')
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM users WHERE email=? AND password=?', (email, password))
-            user = cursor.fetchone()
-            conn.close()
+            try:
+                conn = sqlite3.connect('users.db')
+                cursor = conn.cursor()
+                cursor.execute('SELECT id, email FROM users WHERE email=? AND password=?', (email, password))
+                user = cursor.fetchone()
 
-            if user:
-                print(f"Успешный вход: email={email}")
-                toast("Успешный вход!")
-                self.manager.current = 'main'
-            else:
-                print("Неверный email или пароль")
-                toast("Неверный email или пароль")
+                if user:
+                    user_id, user_email = user
+                    # Сохраняем данные пользователя в приложении
+                    app = MDApp.get_running_app()
+                    app.current_user = {'id': user_id, 'email': user_email}
+
+                    toast("Успешный вход!")
+                    self.manager.current = 'main'
+                else:
+                    toast("Неверный email или пароль")
+
+            except sqlite3.Error as e:
+                print(f"Ошибка базы данных: {e}")
+                toast("Ошибка входа")
+            finally:
+                conn.close()
         else:
-            print("Заполните все поля")
             toast("Заполните все поля")
 
     def switch_to_register(self):
@@ -98,32 +106,139 @@ class LoginScreen(MDScreen):
 
 class RegisterScreen(MDScreen):
     def try_register(self):
-        email = self.ids.reg_email.text
+        email = self.ids.reg_email.text.strip()
         password = self.ids.reg_password.text
+        password_confirm = self.ids.reg_password_confirm.text
 
-        if email and password:
-            try:
-                conn = sqlite3.connect('users.db')
-                cursor = conn.cursor()
-                cursor.execute('INSERT INTO users (email, password) VALUES (?, ?)', (email, password))
-                conn.commit()
-                conn.close()
-                print(f"Успешная регистрация: email={email}")
-                toast("Успешная регистрация!")
-                self.manager.current = 'login'
-            except sqlite3.IntegrityError:
-                print("Пользователь с таким email уже существует")
-                toast("Пользователь с таким email уже существует")
-        else:
-            print("Заполните все поля")
-            toast("Заполните все поля")
+        # Сброс предыдущих ошибок
+        self.ids.reg_email.error = False
+        self.ids.reg_password.error = False
+        self.ids.reg_password_confirm.error = False
+
+        # Валидация полей
+        if not email:
+            self.ids.reg_email.error = True
+            self.ids.reg_email.helper_text = "Введите email"
+            toast("Введите email")
+            return
+
+        if "@" not in email or "." not in email:
+            self.ids.reg_email.error = True
+            self.ids.reg_email.helper_text = "Некорректный email"
+            toast("Некорректный email")
+            return
+
+        if not password:
+            self.ids.reg_password.error = True
+            self.ids.reg_password.helper_text = "Введите пароль"
+            toast("Введите пароль")
+            return
+
+        if len(password) < 6:
+            self.ids.reg_password.error = True
+            self.ids.reg_password.helper_text = "Пароль слишком короткий"
+            toast("Пароль должен содержать минимум 6 символов")
+            return
+
+        if password != password_confirm:
+            self.ids.reg_password_confirm.error = True
+            self.ids.reg_password_confirm.helper_text = "Пароли не совпадают"
+            toast("Пароли не совпадают")
+            return
+
+        conn = None
+        try:
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO users (email, password) VALUES (?, ?)',
+                           (email, password))
+            user_id = cursor.lastrowid
+
+            # Создаем профиль
+            cursor.execute('INSERT INTO profile (user_id, email) VALUES (?, ?)',
+                           (user_id, email))
+            conn.commit()
+
+            # Автоматически входим под новым пользователем
+            app = MDApp.get_running_app()
+            app.current_user = {'id': user_id, 'email': email}
+
+            toast("Регистрация успешна!")
+            self.manager.current = 'main'
+
+        except sqlite3.IntegrityError:
+            toast("Пользователь с таким email уже существует")
+        except Exception as e:
+            print(f"Ошибка регистрации: {e}")
+            toast("Ошибка регистрации")
+        finally:
+            conn.close()
+        # Сброс ошибок
+        self.ids.reg_email.error = False
+        self.ids.reg_password.error = False
+        self.ids.reg_password_confirm.error = False
+
+        # Валидация полей
+        if not email:
+            self.ids.reg_email.error = True
+            self.ids.reg_email.helper_text = "Введите email"
+            toast("Введите email")
+            return
+
+        if "@" not in email or "." not in email:
+            self.ids.reg_email.error = True
+            self.ids.reg_email.helper_text = "Некорректный email"
+            toast("Некорректный email")
+            return
+
+        if not password:
+            self.ids.reg_password.error = True
+            self.ids.reg_password.helper_text = "Введите пароль"
+            toast("Введите пароль")
+            return
+
+        if len(password) < 6:
+            self.ids.reg_password.error = True
+            self.ids.reg_password.helper_text = "Пароль слишком короткий"
+            toast("Пароль должен содержать минимум 6 символов")
+            return
+
+        if password != password_confirm:
+            self.ids.reg_password_confirm.error = True
+            self.ids.reg_password_confirm.helper_text = "Пароли не совпадают"
+            toast("Пароли не совпадают")
+            return
+
+        # Если все проверки пройдены, регистрируем пользователя
+        try:
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO users (email, password) VALUES (?, ?)', (email, password))
+            conn.commit()
+            conn.close()
+
+            toast("Регистрация прошла успешно!")
+            self.manager.current = 'login'
+
+            # Очищаем поля после успешной регистрации
+            self.ids.reg_email.text = ""
+            self.ids.reg_password.text = ""
+            self.ids.reg_password_confirm.text = ""
+
+        except sqlite3.IntegrityError:
+            self.ids.reg_email.error = True
+            self.ids.reg_email.helper_text = "Email уже занят"
+            toast("Пользователь с таким email уже существует")
+        except Exception as e:
+            print(f"Ошибка регистрации: {e}")
+            toast("Ошибка регистрации")
 
     def switch_to_login(self):
         self.manager.current = 'login'
 
 
 class MainScreen(MDScreen):
-    streak_count = StringProperty("7")
+    streak_count = StringProperty("1")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -315,38 +430,30 @@ class MainScreen(MDScreen):
         self.manager.current = 'habit_info'
 
 
-
-
 class ProfileScreen(MDScreen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.load_profile()
+    def on_pre_enter(self, *args):
+        """Загружаем email текущего пользователя при открытии экрана"""
+        self.load_current_user_email()
 
-    def load_profile(self):
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-
-        # Получаем email текущего пользователя (например, user_id=1)
-        cursor.execute('SELECT email FROM users WHERE id = 1')
-        result = cursor.fetchone()
-        conn.close()
-
-        if result:
-            self.ids.email_field.text = result[0]  # Устанавливаем email в поле
+    def load_current_user_email(self):
+        app = MDApp.get_running_app()
+        if app.current_user:
+            self.ids.email_field.text = app.current_user['email']
         else:
-            toast("Ошибка загрузки профиля")
-
-        if result:
-            self.ids.email_field.text = result[0]
+            toast("Не удалось загрузить данные пользователя")
 
     def save_profile(self):
-        new_email = self.ids.email_field.text.strip()  # Убираем лишние пробелы
+        new_email = self.ids.email_field.text.strip()
+        app = MDApp.get_running_app()
+
+        if not app.current_user:
+            toast("Ошибка: пользователь не авторизован")
+            return
 
         if not new_email:
             toast("Введите email")
             return
 
-        # Проверяем валидность email (можно добавить regex)
         if "@" not in new_email or "." not in new_email:
             toast("Некорректный email")
             return
@@ -354,21 +461,41 @@ class ProfileScreen(MDScreen):
         try:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
-            # Обновляем email в таблице users (для user_id=1)
-            cursor.execute('UPDATE users SET email = ? WHERE id = 1', (new_email,))
 
-            # Также обновляем в таблице profile (если она используется)
-            cursor.execute('INSERT OR REPLACE INTO profile (user_id, email) VALUES (1, ?)', (new_email,))
+            # Проверяем, не занят ли email другим пользователем
+            cursor.execute('SELECT id FROM users WHERE email=? AND id!=?',
+                           (new_email, app.current_user['id']))
+            if cursor.fetchone():
+                toast("Этот email уже используется")
+                return
+
+            # Обновляем email в базе данных
+            cursor.execute('UPDATE users SET email=? WHERE id=?',
+                           (new_email, app.current_user['id']))
+            cursor.execute('UPDATE profile SET email=? WHERE user_id=?',
+                           (new_email, app.current_user['id']))
 
             conn.commit()
-            conn.close()
 
-            toast("Профиль обновлен!")
-            self.manager.current = 'main'  # Возвращаемся на главный экран
+            # Обновляем email в текущей сессии
+            app.current_user['email'] = new_email
+            toast("Email успешно изменен")
 
         except sqlite3.Error as e:
-            print("Ошибка SQLite:", e)
+            print(f"Ошибка базы данных: {e}")
             toast("Ошибка сохранения")
+        finally:
+            conn.close()
+
+    def logout(self):
+        app = MDApp.get_running_app()
+        app.current_user = None
+        self.manager.current = 'login'
+        # Очищаем поля ввода на экране логина
+        login_screen = self.manager.get_screen('login')
+        login_screen.ids.email.text = ""
+        login_screen.ids.password.text = ""
+        toast("Вы вышли из системы")
 
     def back_to_main(self):
         self.manager.current = 'main'
@@ -739,6 +866,9 @@ class HabitInfoScreen(MDScreen):
 
 
 class HabitTrackerApp(MDApp):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.current_user = None  # Будет хранить {'id': X, 'email': 'user@example.com'}
     def build(self):
         self.theme_cls.primary_palette = "Blue"
         self.theme_cls.theme_style = "Light"
