@@ -7,13 +7,14 @@ import sqlite3
 from kivymd.toast import toast
 from kivymd.uix.menu import MDDropdownMenu
 # Бычий  сизципень
+# Мягков  сыншлюхеньжирная
 
 # Загрузка всех KV-файлов
-Builder.load_file('/Users/bezenov_v/Desktop/HabitTracker/kv/login.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/HabitTracker/kv/registr.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/HabitTracker/kv/main.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/HabitTracker/kv/add_habit.kv')
-Builder.load_file('/Users/bezenov_v/Desktop/HabitTracker/kv/profile.kv')
+Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/login.kv')
+Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/registr.kv')
+Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/main.kv')
+Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/add_habit.kv')
+Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/profile.kv')
 
 
 # Инициализация базы данных
