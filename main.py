@@ -5,9 +5,10 @@ from kivy.lang import Builder
 from kivy.properties import StringProperty
 import sqlite3
 from kivymd.toast import toast
-from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
+from kivymd.uix.menu import MDDropdownMenu
+
 # Бычий  сизципень мягков
 
 
@@ -51,6 +52,16 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
+
+    cursor.execute('''
+           CREATE TABLE IF NOT EXISTS habit_completions (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               habit_id INTEGER NOT NULL,
+               completion_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+               FOREIGN KEY(habit_id) REFERENCES habits(id)
+           )
+       ''')
+
     conn.commit()
     conn.close()
 
@@ -139,10 +150,11 @@ class MainScreen(MDScreen):
         from kivymd.uix.card import MDCard
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.label import MDLabel
+        from kivymd.uix.progressbar import MDProgressBar
 
         card = MDCard(
             size_hint=(None, None),
-            size=("300dp", "140dp"),  # Увеличили высоту для отображения периода
+            size=("300dp", "160dp"),  # Увеличили высоту для прогресса
             pos_hint={"center_x": 0.5},
             padding="10dp",
             spacing="10dp",
@@ -151,6 +163,19 @@ class MainScreen(MDScreen):
         )
 
         box = MDBoxLayout(orientation='vertical')
+
+        # Получаем данные о прогрессе
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) FROM habit_completions 
+            WHERE habit_id=? 
+            AND completion_date >= ?
+        ''', (habit_id, self.get_period_start(period)))
+        completions = cursor.fetchone()[0]
+        max_completions = self.get_max_completions(frequency, period)
+        progress = min(completions / max_completions * 100, 100) if max_completions > 0 else 0
+        conn.close()
 
         # Первая строка - название и иконка
         top_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height="40dp")
@@ -177,29 +202,103 @@ class MainScreen(MDScreen):
             height="40dp"
         )
 
-        # Третья строка - частота
-        freq_label = MDLabel(
+        # Третья строка - частота и период
+        freq_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height="20dp")
+        freq_box.add_widget(MDLabel(
             text=f"Частота: {frequency}",
             theme_text_color="Hint",
             font_style="Caption",
-            halign="left"
-        )
-
-        # Четвертая строка - период
-        period_label = MDLabel(
+            halign="left",
+            size_hint_x=0.5
+        ))
+        freq_box.add_widget(MDLabel(
             text=f"Период: {period}",
             theme_text_color="Hint",
             font_style="Caption",
-            halign="left"
+            halign="right",
+            size_hint_x=0.5
+        ))
+
+        # Прогресс-бар
+        progress_bar = MDProgressBar(
+            value=progress,
+            max=100,
+            size_hint_y=None,
+            height="10dp"
+        )
+
+        # Текст прогресса
+        progress_label = MDLabel(
+            text=f"Прогресс: {int(progress)}% ({completions}/{max_completions})",
+            theme_text_color="Hint",
+            font_style="Caption",
+            halign="center",
+            size_hint_y=None,
+            height="20dp"
         )
 
         box.add_widget(top_box)
         box.add_widget(desc_label)
-        box.add_widget(freq_label)
-        box.add_widget(period_label)  # Добавляем отображение периода
+        box.add_widget(freq_box)
+        box.add_widget(progress_bar)
+        box.add_widget(progress_label)
         card.add_widget(box)
 
         self.ids.habits_container.add_widget(card)
+
+    def get_period_start(self, period):
+        # Такой же метод как в HabitInfoScreen
+        from datetime import datetime, timedelta
+        now = datetime.now()
+
+        if period == "1 неделя":
+            return now - timedelta(weeks=1)
+        elif period == "3 недели":
+            return now - timedelta(weeks=3)
+        elif period == "1 месяц":
+            return now - timedelta(days=30)
+        elif period == "3 месяца":
+            return now - timedelta(days=90)
+        elif period == "1 год":
+            return now - timedelta(days=365)
+        return now - timedelta(days=1)
+
+    def get_max_completions(self, frequency, period):
+        # Такой же метод как в HabitInfoScreen
+        if frequency == "Каждый день":
+            if period == "1 неделя":
+                return 7
+            elif period == "3 недели":
+                return 21
+            elif period == "1 месяц":
+                return 30
+            elif period == "3 месяца":
+                return 90
+            elif period == "1 год":
+                return 365
+        elif frequency == "Каждую неделю":
+            if period == "1 неделя":
+                return 1
+            elif period == "3 недели":
+                return 3
+            elif period == "1 месяц":
+                return 4
+            elif period == "3 месяца":
+                return 12
+            elif period == "1 год":
+                return 52
+        elif frequency == "Каждый месяц":
+            if period == "1 неделя":
+                return 0
+            elif period == "3 недели":
+                return 0
+            elif period == "1 месяц":
+                return 1
+            elif period == "3 месяца":
+                return 3
+            elif period == "1 год":
+                return 12
+        return 1
 
     def show_streak(self):
         toast(f"Текущая серия: {self.streak_count} дней подряд!")
@@ -390,6 +489,11 @@ class HabitInfoScreen(MDScreen):
             habit = cursor.fetchone()
             conn.close()
 
+            if not habit:
+                toast("Привычка не найдена")
+                self.manager.current = 'main'
+                return
+
             if habit:
                 name, icon, description, frequency, period = habit
                 self.ids.habit_name.text = name
@@ -397,6 +501,141 @@ class HabitInfoScreen(MDScreen):
                 self.ids.habit_description.text = description
                 self.ids.habit_frequency.text = f"Частота: {frequency}"
                 self.ids.habit_period.text = f"Период: {period}"
+
+            self.update_progress()
+
+    def update_progress(self):
+        if not self.habit_id:
+            return
+
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+
+        # Получаем данные о привычке
+        cursor.execute('SELECT frequency, period FROM habits WHERE id=?', (self.habit_id,))
+        habit_data = cursor.fetchone()
+
+        if habit_data:
+            frequency, period = habit_data
+            # Получаем все отметки за текущий период
+            cursor.execute('''
+                SELECT COUNT(*) FROM habit_completions 
+                WHERE habit_id=? 
+                AND completion_date >= ?
+            ''', (self.habit_id, self.get_period_start(period)))
+
+            completions = cursor.fetchone()[0]
+            max_completions = self.get_max_completions(frequency, period)
+            progress = min(completions / max_completions * 100, 100)
+
+            # Обновляем прогресс
+            self.ids.progress_label.text = f"Прогресс: {int(progress)}%"
+            self.ids.progress_bar.value = progress
+
+            # Активируем/деактивируем кнопку
+            can_complete = self.can_complete_today()
+            self.ids.complete_btn.disabled = not can_complete
+            self.ids.complete_btn.text = "Выполнено" if not can_complete else "Отметить выполнение"
+
+        conn.close()
+
+    def get_period_start(self, period):
+        from datetime import datetime, timedelta
+        now = datetime.now()
+
+        if period == "1 неделя":
+            return now - timedelta(weeks=1)
+        elif period == "3 недели":
+            return now - timedelta(weeks=3)
+        elif period == "1 месяц":
+            return now - timedelta(days=30)
+        elif period == "3 месяца":
+            return now - timedelta(days=90)
+        elif period == "1 год":
+            return now - timedelta(days=365)
+        return now - timedelta(days=1)  # По умолчанию
+
+    def get_max_completions(self, frequency, period):
+        if frequency == "Каждый день":
+            if period == "1 неделя":
+                return 7
+            elif period == "3 недели":
+                return 21
+            elif period == "1 месяц":
+                return 30
+            elif period == "3 месяца":
+                return 90
+            elif period == "1 год":
+                return 365
+        elif frequency == "Каждую неделю":
+            if period == "1 неделя":
+                return 1
+            elif period == "3 недели":
+                return 3
+            elif period == "1 месяц":
+                return 4
+            elif period == "3 месяца":
+                return 12
+            elif period == "1 год":
+                return 52
+        elif frequency == "Каждый месяц":
+            if period == "1 неделя":
+                return 0
+            elif period == "3 недели":
+                return 0
+            elif period == "1 месяц":
+                return 1
+            elif period == "3 месяца":
+                return 3
+            elif period == "1 год":
+                return 12
+        return 1
+
+    def can_complete_today(self):
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT COUNT(*) FROM habit_completions 
+            WHERE habit_id=? 
+            AND date(completion_date) = date('now')
+        ''', (self.habit_id,))
+
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count == 0
+
+    def mark_completed(self):
+        # Проверяем, что привычка еще существует
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM habits WHERE id=?', (self.habit_id,))
+        if not cursor.fetchone():
+            toast("Привычка была удалена")
+            conn.close()
+            self.manager.current = 'main'
+            return
+
+        if not self.can_complete_today():
+            toast("Вы уже отметили выполнение сегодня")
+            return
+
+        try:
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO habit_completions (habit_id) VALUES (?)', (self.habit_id,))
+            conn.commit()
+            conn.close()
+
+            toast("Привычка отмечена как выполненная!")
+            self.update_progress()
+
+            # Обновляем главный экран
+            main_screen = self.manager.get_screen('main')
+            main_screen.load_habits()
+        except Exception as e:
+            print(f"Ошибка отметки выполнения: {e}")
+            toast("Ошибка отметки выполнения")
 
     def back_to_main(self):
         self.manager.current = 'main'
@@ -426,43 +665,53 @@ class HabitInfoScreen(MDScreen):
             toast("Ошибка при редактировании")
 
     def show_delete_dialog(self):
-        dialog = MDDialog(
+        from kivymd.uix.dialog import MDDialog
+
+        self.delete_dialog = MDDialog(
             title="Удаление привычки",
             text=f"Вы уверены, что хотите удалить привычку '{self.ids.habit_name.text}'?",
             buttons=[
                 MDFlatButton(
                     text="Отмена",
-                    theme_text_color="Custom",
-                    text_color=self.theme_cls.primary_color,
-                    on_release=lambda *args: dialog.dismiss()
+                    on_release=lambda *args: self.delete_dialog.dismiss()
                 ),
                 MDRaisedButton(
                     text="Удалить",
                     md_bg_color=self.theme_cls.error_color,
-                    on_release=lambda *args: self.delete_habit(dialog)
+                    on_release=lambda *args: self.delete_habit()
                 ),
             ],
         )
-        dialog.open()
+        self.delete_dialog.open()
 
-    def delete_habit(self, dialog):
+    def delete_habit(self):
         try:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
+
+            # Удаляем привычку из таблицы habits
             cursor.execute('DELETE FROM habits WHERE id=?', (self.habit_id,))
+
+            # Удаляем связанные отметки о выполнении
+            cursor.execute('DELETE FROM habit_completions WHERE habit_id=?', (self.habit_id,))
+
             conn.commit()
             conn.close()
 
             toast("Привычка удалена")
-            dialog.dismiss()
-            self.back_to_main()
+            if hasattr(self, 'delete_dialog'):
+                self.delete_dialog.dismiss()
 
-            # Обновляем главный экран
+            # Возвращаемся на главный экран
+            self.manager.current = 'main'
+
+            # Обновляем список привычек на главном экране
             main_screen = self.manager.get_screen('main')
             main_screen.load_habits()
+
         except Exception as e:
             print(f"Ошибка удаления привычки: {e}")
-            toast("Ошибка удаления")
+            toast("Ошибка при удалении привычки")
 
 
 class HabitTrackerApp(MDApp):

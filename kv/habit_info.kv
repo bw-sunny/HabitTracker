@@ -55,6 +55,19 @@
                     height: self.texture_size[1]
 
                 MDLabel:
+                    text: "Частота выполнения:"
+                    font_style: "H6"
+                    size_hint_y: None
+                    height: self.texture_size[1]
+
+                MDLabel:
+                    id: habit_frequency
+                    text: ""
+                    font_style: "Body1"
+                    size_hint_y: None
+                    height: self.texture_size[1]
+
+                MDLabel:
                     text: "Период выполнения:"
                     font_style: "H6"
                     size_hint_y: None
@@ -68,33 +81,43 @@
                     height: self.texture_size[1]
 
                 MDLabel:
-                    text: "Частота выполнения:"
+                    id: progress_label
+                    text: "Прогресс: 0%"
                     font_style: "H6"
                     size_hint_y: None
                     height: self.texture_size[1]
 
-                MDLabel:
-                    id: habit_frequency
-                    text: ""
-                    font_style: "Body1"
-                    size_hint_y: None
-                    height: self.texture_size[1]
-
-
+                MDProgressBar:
+                    id: progress_bar
+                    value: 0
+                    max: 100
+                    size_hint_x: 0.9
+                    pos_hint: {"center_x": 0.5}
+                    height: "10dp"
 
         BoxLayout:
+            orientation: 'vertical'
             size_hint_y: None
-            height: dp(120)
+            height: dp(200)  # Увеличиваем высоту для вертикального расположения
             padding: dp(20)
             spacing: dp(10)
 
             MDRaisedButton:
                 text: "Редактировать"
-                size_hint_x: 0.5
+                size_hint_y: None
+                height: dp(48)
                 on_press: root.edit_habit()
 
             MDRaisedButton:
+                id: complete_btn
+                text: "Отметить выполнение"
+                size_hint_y: None
+                height: dp(48)
+                on_press: root.mark_completed()
+
+            MDRaisedButton:
                 text: "Удалить"
-                size_hint_x: 0.5
+                size_hint_y: None
+                height: dp(48)
                 on_press: root.show_delete_dialog()
                 md_bg_color: app.theme_cls.error_color
