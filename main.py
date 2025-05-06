@@ -13,12 +13,12 @@ from kivymd.uix.menu import MDDropdownMenu
 
 
 # Загрузка всех KV-файлов
-Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/login.kv')
-Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/registr.kv')
-Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/main.kv')
-Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/add_habit.kv')
-Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/profile.kv')
-Builder.load_file('C:/Users/Misha/PycharmProjects/HabitTracker/kv/habit_info.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/login.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/registr.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/main.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/add_habit.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/profile.kv')
+Builder.load_file('/Users/bezenov_v/Desktop/eedit_profile/HabitTracker/kv/habit_info.kv')
 
 
 # Инициализация базы данных
@@ -325,26 +325,50 @@ class ProfileScreen(MDScreen):
     def load_profile(self):
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
-        cursor.execute('SELECT email FROM users LIMIT 1')
+
+        # Получаем email текущего пользователя (например, user_id=1)
+        cursor.execute('SELECT email FROM users WHERE id = 1')
         result = cursor.fetchone()
         conn.close()
+
+        if result:
+            self.ids.email_field.text = result[0]  # Устанавливаем email в поле
+        else:
+            toast("Ошибка загрузки профиля")
 
         if result:
             self.ids.email_field.text = result[0]
 
     def save_profile(self):
-        email = self.ids.email_field.text
+        new_email = self.ids.email_field.text.strip()  # Убираем лишние пробелы
 
-        if email:
+        if not new_email:
+            toast("Введите email")
+            return
+
+        # Проверяем валидность email (можно добавить regex)
+        if "@" not in new_email or "." not in new_email:
+            toast("Некорректный email")
+            return
+
+        try:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
-            cursor.execute('INSERT OR REPLACE INTO profile (user_id, email) VALUES (1, ?)', (email,))
+            # Обновляем email в таблице users (для user_id=1)
+            cursor.execute('UPDATE users SET email = ? WHERE id = 1', (new_email,))
+
+            # Также обновляем в таблице profile (если она используется)
+            cursor.execute('INSERT OR REPLACE INTO profile (user_id, email) VALUES (1, ?)', (new_email,))
+
             conn.commit()
             conn.close()
-            toast("Профиль сохранен!")
-            self.back_to_main()
-        else:
-            toast("Введите email")
+
+            toast("Профиль обновлен!")
+            self.manager.current = 'main'  # Возвращаемся на главный экран
+
+        except sqlite3.Error as e:
+            print("Ошибка SQLite:", e)
+            toast("Ошибка сохранения")
 
     def back_to_main(self):
         self.manager.current = 'main'
