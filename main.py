@@ -8,6 +8,15 @@ from kivymd.toast import toast
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.gridlayout import MDGridLayout
+from kivy.uix.image import AsyncImage
+from kivy.uix.behaviors import ButtonBehavior
+from kivymd.uix.dialog import MDDialog
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.image import Image
+import os
 
 # Бычий  сизципень мягков
 
@@ -44,7 +53,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             name TEXT NOT NULL,
-            icon TEXT,
+            icon TEXT,  -- Будем хранить путь к файлу
             description TEXT,
             frequency TEXT,
             period TEXT,
@@ -54,13 +63,13 @@ def init_db():
     ''')
 
     cursor.execute('''
-           CREATE TABLE IF NOT EXISTS habit_completions (
-               id INTEGER PRIMARY KEY AUTOINCREMENT,
-               habit_id INTEGER NOT NULL,
-               completion_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-               FOREIGN KEY(habit_id) REFERENCES habits(id)
-           )
-       ''')
+        CREATE TABLE IF NOT EXISTS habit_completions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            habit_id INTEGER NOT NULL,
+            completion_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(habit_id) REFERENCES habits(id)
+        )
+    ''')
 
     conn.commit()
     conn.close()
@@ -68,6 +77,8 @@ def init_db():
 
 init_db()
 
+class IconButton(ButtonBehavior, Image):
+    pass
 
 class LoginScreen(MDScreen):
     def try_login(self):
@@ -256,20 +267,21 @@ class MainScreen(MDScreen):
             conn.close()
 
             for habit in habits:
-                habit_id, name, icon, description, frequency, period = habit
-                self.add_habit_to_ui(habit_id, name, icon, description, frequency, period)
+                habit_id, name, icon_path, description, frequency, period = habit
+                self.add_habit_to_ui(habit_id, name, icon_path, description, frequency, period)
         except Exception as e:
             print(f"Ошибка загрузки привычек: {e}")
 
-    def add_habit_to_ui(self, habit_id, name, icon, description, frequency, period):
+    def add_habit_to_ui(self, habit_id, name, icon_path, description, frequency, period):
         from kivymd.uix.card import MDCard
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.label import MDLabel
         from kivymd.uix.progressbar import MDProgressBar
+        from kivy.uix.image import AsyncImage
 
         card = MDCard(
             size_hint=(None, None),
-            size=("300dp", "160dp"),  # Увеличили высоту для прогресса
+            size=("300dp", "160dp"),
             pos_hint={"center_x": 0.5},
             padding="10dp",
             spacing="10dp",
@@ -294,17 +306,22 @@ class MainScreen(MDScreen):
 
         # Первая строка - название и иконка
         top_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height="40dp")
+
+        # Добавляем иконку
+        icon = AsyncImage(
+            source=icon_path,
+            size_hint=(None, None),
+            size=("30dp", "30dp"),
+            pos_hint={"center_y": 0.5}
+        )
+
+        top_box.add_widget(icon)
         top_box.add_widget(MDLabel(
             text=name,
             theme_text_color="Primary",
             font_style="H6",
-            halign="left"
-        ))
-        top_box.add_widget(MDLabel(
-            text=icon,
-            theme_text_color="Primary",
-            font_style="H6",
-            halign="right"
+            halign="left",
+            size_hint_x=0.8
         ))
 
         # Вторая строка - описание
@@ -504,47 +521,155 @@ class ProfileScreen(MDScreen):
 class AddHabitScreen(MDScreen):
     edit_mode = False
     editing_habit_id = None
+    current_icon = StringProperty("")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.icon_picker_dialog = None
+  # Будет хранить путь к выбранной иконке
+    def select_icon(self, icon_path):
+        """Обработчик выбора иконки"""
+        self.current_icon = icon_path
+        self.ids.habit_icon.source = icon_path
+        if hasattr(self, 'icon_dialog'):
+            self.icon_dialog.dismiss()
+        toast(f"Выбрана иконка: {os.path.basename(icon_path)}")
+
+    def show_icon_picker(self):
+        try:
+            # Создаем контейнер для иконок
+            grid = MDGridLayout(cols=4, spacing="10dp", padding="10dp", adaptive_height=True)
+
+            # Путь к папке с иконками
+            icons_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+
+            # Проверяем существование папки
+            if not os.path.exists(icons_dir):
+                os.makedirs(icons_dir)
+                toast("Папка с иконками создана. Добавьте туда PNG-файлы")
+                return
+
+            # Получаем список файлов
+            icon_files = [f for f in os.listdir(icons_dir) if f.lower().endswith('.png')]
+
+            if not icon_files:
+                toast("Нет доступных иконок в папке assets/icons")
+                return
+
+            # Добавляем иконки в сетку
+            for icon_file in sorted(icon_files):
+                icon_path = os.path.join(icons_dir, icon_file)
+                btn = IconButton(
+                    source=icon_path,
+                    size_hint=(None, None),
+                    size=("64dp", "64dp"),
+                    allow_stretch=True
+                )
+                # Исправленный вызов - передаем только path
+                btn.bind(on_release=lambda btn_instance, path=icon_path: self.select_icon(path))
+                grid.add_widget(btn)
+
+            # Создаем диалог
+            self.icon_dialog = MDDialog(
+                title="[b]Выберите иконку[/b]",
+                type="custom",
+                content_cls=grid,
+                size_hint=(0.9, 0.8),
+                buttons=[
+                    MDFlatButton(
+                        text="ОТМЕНА",
+                        theme_text_color="Custom",
+                        text_color=self.theme_cls.primary_color,
+                        on_release=lambda x: self.icon_dialog.dismiss()
+                    )
+                ]
+            )
+            self.icon_dialog.open()
+
+        except Exception as e:
+            print(f"Ошибка при открытии выбора иконок: {e}")
+            toast("Ошибка загрузки иконок")
 
     def save_habit(self):
+        # Проверяем обязательные поля
+        if not self.ids.habit_name.text:
+            toast("Введите название привычки")
+            return
+
+        if not self.current_icon:
+            toast("Выберите иконку для привычки")
+            return
+
+        # Получаем данные из полей формы
         name = self.ids.habit_name.text
-        icon = self.ids.habit_icon.icon
         description = self.ids.habit_description.text
         frequency = self.ids.frequency_btn.text
         period = self.ids.period_btn.text
 
-        if not all([name, description, frequency != "Выберите частоту", period != "Выберите период"]):
-            toast("Заполните все поля")
+        # Проверяем, что частота и период выбраны
+        if frequency == "Выберите частоту":
+            toast("Выберите частоту выполнения")
             return
+
+        if period == "Выберите период":
+            toast("Выберите период выполнения")
+            return
+
+        # Получаем относительный путь к иконке
+        icons_dir = os.path.join("assets", "icons")
+        icon_name = os.path.basename(self.current_icon)
+        icon_path = os.path.join(icons_dir, icon_name)
 
         try:
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
 
             if self.edit_mode:
+                # Редактирование существующей привычки
                 cursor.execute('''
                     UPDATE habits 
                     SET name=?, icon=?, description=?, frequency=?, period=?
                     WHERE id=?
-                ''', (name, icon, description, frequency, period, self.editing_habit_id))
+                ''', (name, icon_path, description, frequency, period, self.editing_habit_id))
             else:
+                # Создание новой привычки
                 cursor.execute('''
                     INSERT INTO habits (user_id, name, icon, description, frequency, period)
                     VALUES (?, ?, ?, ?, ?, ?)
-                ''', (1, name, icon, description, frequency, period))
+                ''', (1, name, icon_path, description, frequency, period))
 
             conn.commit()
             conn.close()
+
+            # Показываем уведомление об успехе
             toast("Привычка сохранена!")
+
+            # Возвращаемся на главный экран
             self.manager.current = 'main'
+
+            # Обновляем список привычек
             self.manager.get_screen('main').load_habits()
 
             # Сбрасываем режим редактирования
             self.edit_mode = False
             self.editing_habit_id = None
 
+            # Очищаем форму (если не в режиме редактирования)
+            if not self.edit_mode:
+                self.ids.habit_name.text = ""
+                self.current_icon = ""
+                self.ids.habit_icon.source = "assets/icons/default.png"
+                self.ids.habit_description.text = ""
+                self.ids.frequency_btn.text = "Выберите частоту"
+                self.ids.period_btn.text = "Выберите период"
+
+        except sqlite3.Error as e:
+            print(f"Ошибка базы данных при сохранении привычки: {e}")
+            toast("Ошибка сохранения в базе данных")
+
         except Exception as e:
-            print(f"Ошибка сохранения привычки: {e}")
-            toast("Ошибка сохранения")
+            print(f"Неожиданная ошибка при сохранении привычки: {e}")
+            toast("Ошибка сохранения привычки")
 
     def on_pre_leave(self):
         # Очищаем поля при выходе с экрана
@@ -890,6 +1015,46 @@ class HabitTrackerApp(MDApp):
         toast("FAQ")
 
 
+class IconPickerDialog(MDDialog):
+    def __init__(self, callback, **kwargs):
+        self.callback = callback
+        super().__init__(
+            title="Выберите иконку",
+            type="custom",
+            content_cls=self.create_content(),
+            buttons=[
+                MDFlatButton(
+                    text="Отмена",
+                    on_release=lambda x: self.dismiss()
+                )
+            ],
+            **kwargs
+        )
+
+    def create_content(self):
+        layout = GridLayout(cols=4, spacing=10, padding=10, size_hint_y=None)
+        layout.bind(minimum_height=layout.setter('height'))
+
+        icons_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+
+        for icon_file in sorted(os.listdir(icons_dir)):
+            if icon_file.endswith(".png"):
+                icon_path = os.path.join(icons_dir, icon_file)
+                btn = IconButton(
+                    source=icon_path,
+                    size_hint=(None, None),
+                    size=(64, 64),
+                    on_release=lambda x, path=icon_path: self.icon_selected(path)
+                )
+                layout.add_widget(btn)
+
+        scroll = ScrollView(size_hint=(1, 1))
+        scroll.add_widget(layout)
+        return scroll
+
+    def icon_selected(self, icon_path):
+        self.callback(icon_path)
+        self.dismiss()
 
 
 if __name__ == '__main__':
